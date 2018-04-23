@@ -61,8 +61,8 @@ class SendMailViewController : UIViewController {
             updateUI(showActivityIndicator: true, statusText: "Getting picture", sendMail: true)
 
             //Important: Break out of async promise chain by declaring result returns Void
-            _ = self.userPictureWork().then{
-                result -> Void in
+            _ = self.userPictureWork().done{
+                result in
                     self.userPictureUrl = (result[1] as! String)
                     self.userProfilePicture = (result[0] as! UIImage)
                     self.updateUI(showActivityIndicator: false, statusText: "", sendMail: true)
@@ -101,25 +101,25 @@ class SendMailViewController : UIViewController {
         Promise<UIImage>. The user's profile picture
      */
     func getUserPicture()->Promise<UIImage?>{
-        return Promise{ fulfill, reject in
+        return Promise{ seal in
             let urlRequest = buildRequest(operation: "GET", resource: "photo/$value") as URLRequest
             let task = URLSession.shared.dataTask(with:urlRequest){ data , res , err in
                 if let err:Error = err {
                     print(err.localizedDescription)
-                    return reject(err)
+                    return seal.reject(err)
                 }
                 if ((self.checkResult(result: res!)) != HTTPError.NoError) {
-                    return fulfill(self.getDefaultPicture())
+                    return seal.fulfill(self.getDefaultPicture())
                 }
                 if let data = data {
                     if let userImage: UIImage = UIImage(data:data) {
                         self.userProfilePicture = userImage
-                        return fulfill(userImage)
+                        return seal.fulfill(userImage)
                     } else {
-                        return reject("no image" as! Error)
+                        return seal.reject("no image" as! Error)
                     }
                 } else {
-                    return fulfill(self.getDefaultPicture())
+                    return seal.fulfill(self.getDefaultPicture())
                 }
             }
             task.resume()
@@ -144,15 +144,15 @@ class SendMailViewController : UIViewController {
      - UIImage: The image to upload to OneDrive
      */
     func uploadPicture(photo: UIImage) -> Promise<[AnyObject]> {
-        return Promise<[AnyObject]>{ fulfill, reject in
+        return Promise<[AnyObject]>{ seal in
             let uploadRequestUrl = self.buildRequest(operation: "PUT", resource: "drive/root:/me.jpg:/content", content: UIImageJPEGRepresentation(photo, 1.0)!) as URLRequest
             
             let task = URLSession.shared.dataTask(with:uploadRequestUrl){ data, res, err in
                 if let err = err{
-                    return reject(err)
+                    return seal.reject(err)
                 }
                 if ((self.checkResult(result: res!)) != HTTPError.NoError) {
-                    return reject(HTTPError.InvalidRequest)
+                    return seal.reject(HTTPError.InvalidRequest)
                 }
                 
                 //data can be serialized to a DriveItem object
@@ -164,7 +164,7 @@ class SendMailViewController : UIViewController {
                     var returnValues = [AnyObject]();
                     returnValues.append(photo as AnyObject)
                     returnValues.append(itemId as AnyObject)
-                    return fulfill(returnValues)
+                    return seal.fulfill(returnValues)
                 }
             }
             task.resume()
@@ -178,7 +178,7 @@ class SendMailViewController : UIViewController {
      */
     func createSharingLink(itemId: String, image: UIImage) ->Promise<[AnyObject]>{
         
-        return Promise<[AnyObject]>{ fulfill, reject in
+        return Promise<[AnyObject]>{ seal in
             
             //Create Data object for the JSON payload
             
@@ -193,10 +193,10 @@ class SendMailViewController : UIViewController {
                     
                     let task = URLSession.shared.dataTask(with:uploadRequestUrl){ data, res, err in
                         if let err = err{
-                            return reject(err)
+                            return seal.reject(err)
                         }
                         if ((self.checkResult(result: res!)) != HTTPError.NoError) {
-                            return reject(HTTPError.InvalidRequest)
+                            return seal.reject(HTTPError.InvalidRequest)
                         }
                         
                         //data can be serialized to a DriveItem object
@@ -215,7 +215,7 @@ class SendMailViewController : UIViewController {
                             var returnValues = [AnyObject]();
                             returnValues.append(image as AnyObject)
                             returnValues.append(sharingLink as AnyObject)
-                            return fulfill(returnValues)
+                            return seal.fulfill(returnValues)
                         }
                     }
                     task.resume()
